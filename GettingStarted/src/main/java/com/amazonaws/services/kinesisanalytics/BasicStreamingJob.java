@@ -72,13 +72,16 @@ public class BasicStreamingJob {
         /* If you would like to use runtime configuration properties, uncomment the lines below
          * DataStream<String> input = createSourceFromApplicationProperties(env);
          */
+        log.info("Create an input");
         DataStream<String> input = createSourceFromStaticConfig(env);
 
         /* If you would like to use runtime configuration properties, uncomment the lines below
          * input.sinkTo(createSinkFromApplicationProperties())
          */
+        log.info("Start to create an sink");
         // input.sinkTo(createSinkFromStaticConfig());
         input.addSink(createCDSinkFromApplicationProperties());
+        log.info("Success to add a CelerData sink");
 
         env.execute("Flink Streaming Java API Skeleton");
     }
