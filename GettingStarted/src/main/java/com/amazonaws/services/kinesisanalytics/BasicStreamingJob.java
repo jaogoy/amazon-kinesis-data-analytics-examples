@@ -78,7 +78,7 @@ public class BasicStreamingJob {
          * input.sinkTo(createSinkFromApplicationProperties())
          */
         // input.sinkTo(createSinkFromStaticConfig());
-        input.sinkTo(createCDSinkFromApplicationProperties());
+        input.addSink(createCDSinkFromApplicationProperties());
 
         env.execute("Flink Streaming Java API Skeleton");
     }
