@@ -39,8 +39,18 @@ public class BasicStreamingJob {
 
     private static DataStream<String> createSourceFromApplicationProperties(StreamExecutionEnvironment env) throws IOException {
         Map<String, Properties> applicationProperties = KinesisAnalyticsRuntime.getApplicationProperties();
-        return env.addSource(new FlinkKinesisConsumer<>(inputStreamName, new SimpleStringSchema(),
-                applicationProperties.get("ConsumerConfigProperties")));
+        Properties inputProperties = applicationProperties.get("ConsumerConfigProperties");
+        if (inputProperties == null) {
+            inputProperties = new Properties();
+        }
+        if (!inputProperties.contains(ConsumerConfigConstants.AWS_REGION)) {
+            inputProperties.setProperty(ConsumerConfigConstants.AWS_REGION, region);
+        }
+        if (!inputProperties.contains(ConsumerConfigConstants.STREAM_INITIAL_POSITION)) {
+            inputProperties.setProperty(ConsumerConfigConstants.STREAM_INITIAL_POSITION, "LATEST");
+        }
+
+        return env.addSource(new FlinkKinesisConsumer<>(inputStreamName, new SimpleStringSchema(), inputProperties));
     }
 
     private static FlinkKinesisProducer<String> createSinkFromStaticConfig() {
@@ -72,7 +82,8 @@ public class BasicStreamingJob {
          * DataStream<String> input = createSourceFromApplicationProperties(env);
          */
         log.info("Create an input");
-        DataStream<String> input = createSourceFromStaticConfig(env);
+        // DataStream<String> input = createSourceFromStaticConfig(env);
+        DataStream<String> input = createSourceFromApplicationProperties(env);
 
         /* if you would like to use runtime configuration properties, uncomment the lines below
          * input.addSink(createSinkFromApplicationProperties())
@@ -80,28 +91,33 @@ public class BasicStreamingJob {
         log.info("Start to create an sink");
         // input.addSink(createSinkFromStaticConfig());
         input.addSink(createCDSinkFromApplicationProperties());
-        log.info("Success to add a CelerData sink");
+        log.info("Success to add a sink");
 
         env.execute("Flink Streaming Java API Skeleton");
     }
 
     private static SinkFunction<String> createCDSinkFromApplicationProperties() throws IOException {
         Map<String, Properties> applicationProperties = KinesisAnalyticsRuntime.getApplicationProperties();
-        Properties properties = applicationProperties.get("ProducerConfigProperties");
-        log.info("properties: " + properties.toString());
+        Properties outputProperties = applicationProperties.get("ProducerConfigProperties");
+        if (outputProperties == null) {
+            outputProperties = new Properties();
+            log.info("ProducerConfigProperties is not set. It will use default config");
+        }
 
         StarRocksSinkOptions.Builder builder = StarRocksSinkOptions.builder()
-                .withProperty("jdbc-url", properties.getProperty("jdbc-url", "jdbc:mysql://54.200.157.137:9030"))
-                .withProperty("load-url", properties.getProperty("load-url", "35.89.175.107:8040"))
-                .withProperty("username", "admin")
-                .withProperty("password", "StarRocks")
-                .withProperty("table-name", "test_kinesis_trade_simple")
-                .withProperty("database-name", "lj01")
+                .withProperty("jdbc-url", outputProperties.getProperty("jdbc-url", "jdbc:mysql://172.31.86.199:9030"))
+                .withProperty("load-url", outputProperties.getProperty("load-url", "172.31.86.199:8030"))
+                .withProperty("username", outputProperties.getProperty("username", "admin"))
+                .withProperty("password", outputProperties.getProperty("password", "yuzhuo"))
+                .withProperty("table-name", outputProperties.getProperty("table-name", "users"))
+                .withProperty("database-name", outputProperties.getProperty("database-name", "lilytest"))
                 .withProperty("sink.properties.format", "json")
-                .withProperty("sink.properties.jsonpaths", "[\"$\"]")
-                .withProperty("sink.properties.columns", "value, id=102")
+                .withProperty("sink.properties.jsonpaths", "[\"event_time\", \"ticker\", \"price\"]")
+                // .withProperty("sink.properties.columns", "value, id=101")
                 .withProperty("sink.properties.strip_outer_array", "true");
-        for (Map.Entry<Object, Object> property: properties.entrySet()) {
+
+        log.info("properties: " + outputProperties.toString());
+        for (Map.Entry<Object, Object> property : outputProperties.entrySet()) {
             if (StringUtils.startsWith(property.getKey().toString(), "sink.")) {
                 builder.withProperty(property.getKey().toString(), property.getValue().toString());
             }
